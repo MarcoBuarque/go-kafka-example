@@ -12,17 +12,13 @@ type ProducerCli struct {
 	FlushTimeout int
 }
 
-func ConfigProducer(url, groupId string, timeout int) (*ProducerCli, error) {
+func ConfigProducer(url string, timeout int) (*ProducerCli, error) {
 	if url == "" {
 		return &ProducerCli{}, errors.New("invalid Url")
 	}
 
 	config := kafka.ConfigMap{
 		"bootstrap.servers": url,
-	}
-
-	if groupId != "" {
-		config["group.id"] = groupId
 	}
 
 	p, err := kafka.NewProducer(&config)
