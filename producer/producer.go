@@ -3,6 +3,7 @@ package producer
 import (
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
@@ -12,14 +13,13 @@ type ProducerCli struct {
 	FlushTimeout int
 }
 
+// ConfigProducer - configure kafka producer
 func ConfigProducer(url string, timeout int) (*ProducerCli, error) {
 	if url == "" {
 		return &ProducerCli{}, errors.New("invalid Url")
 	}
 
-	config := kafka.ConfigMap{
-		"bootstrap.servers": url,
-	}
+	config := kafka.ConfigMap{"bootstrap.servers": url}
 
 	p, err := kafka.NewProducer(&config)
 	if err != nil {
@@ -35,25 +35,33 @@ func ConfigProducer(url string, timeout int) (*ProducerCli, error) {
 		FlushTimeout: timeout,
 	}
 
-	go pc.Watch()
+	go pc.watch()
 
 	return pc, nil
 }
 
-func (pc ProducerCli) Watch() {
+// watch - Handle message delivery reports
+func (pc ProducerCli) watch() {
 	for e := range pc.Producer.Events() {
 		switch ev := e.(type) {
 		case *kafka.Message:
 			if ev.TopicPartition.Error != nil {
 				fmt.Printf("Delivery failed: %v\n", ev.TopicPartition)
 			} else {
-				fmt.Printf("Delivered message to %v\n", ev.TopicPartition)
+				fmt.Printf("Delivered message to topic %v partition %v\n", ev.TopicPartition.Topic, ev.TopicPartition.Partition)
+			}
+		case kafka.Error:
+			fmt.Printf("Kafka error: %v\n", ev.Error())
+			if ev.IsFatal() {
+				log.Fatal("Fatal error.... bye")
 			}
 		}
+
 	}
 }
 
-func (pc ProducerCli) Close() {
+// Stop  - close the producer after flushing
+func (pc ProducerCli) Stop() {
 	if num := pc.Producer.Flush(pc.FlushTimeout); num > 0 {
 		fmt.Println("Un-flushed events ", num)
 	}
@@ -61,6 +69,7 @@ func (pc ProducerCli) Close() {
 	pc.Producer.Close()
 }
 
+// Post - send message to topic
 func (pc ProducerCli) Post(message []byte, key, topic string) error {
 	kMessage := &kafka.Message{
 		Value:          message,
